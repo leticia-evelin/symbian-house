@@ -3,6 +3,7 @@ package br.senai.sp.jandira.softwarehousesymbian
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -60,7 +61,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.lifecycle.lifecycleScope
-
+import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
+import okhttp3.ResponseBody
 
 
 class MainActivity : ComponentActivity() {
@@ -211,56 +216,37 @@ fun RegisterUser() {
 
                     Button(
                         onClick = {
-//                            val userObject = JsonObject().apply {
-//                                addProperty("email", emailState)
-//                                addProperty("password", passwordState)
-//                                // Adicione outros campos, se necessário
-//                            }
-//                            val apiService = RetrofitHelper.getInstance().create(ApiService::class.java)
-//
-////                            CoroutineScope(Dispatchers.IO).launch {
-////                                try {
-////                                    val response = apiService.createUser(userObject)
-////                                    if (response.isSuccessful) {
-////                                        val responseBody = response.body()
-////                                        if (responseBody != null) {
-////                                            // Sucesso, faça algo aqui se necessário
-////                                        } else {
-////                                            Log.i("DS3M","BODY VAZIO")
-////                                        }
-////                                    } else {
-////                                        Log.i("DS3M","NOP")
-////                                    }
-////                                } catch (e: Exception) {
-////                                    // Erro de rede ou exceção, trate de acordo
-////                                    Log.i("DS3M","PROBLEMAS")
-////                                }
-////                            }
-                            lifecycleScope.launch { // <-- Inicie uma coroutine aqui
-                                val apiService = RetrofitHelper.getInstance().create(ApiService::class.java)
+                            var user = UserResponse(
+                                email = emailState,
+                                password = passwordState,
+                            )
+                           val apiService = RetrofitHelper.getInstance().create(ApiService::class.java)
+
+//                           val call = RetrofitHelper().Register().createUser(user)
+
+
+                            CoroutineScope(Dispatchers.IO).launch {
                                 try {
-                                    // Montagem do corpo de dados em JSON
-                                    val body = JsonObject().apply {
-                                        addProperty("email", emailState)
-                                        addProperty("password", passwordState)
-
-                                    }
-
-                                    // Envio da requisição de cadastro de usuário
-                                    val result = apiService.createUser(body)
-
-                                    // Verificando a resposta da requisição
-                                    if (result.isSuccessful) {
-                                        val msg = result.body()?.get("mensagemStatus")
-                                        Log.e("CREATE-USER", "STATUS: $msg")
-                                    } else {
-                                        Log.e("CREATE-USER", "ERROR: ${result.message()}")
+                                    val response = apiService.createUser(user)
+                                    withContext(Dispatchers.Main) {
+                                        if (response.isSuccessful) {
+                                            val responseBody = response.body()
+                                            if (responseBody != null) {
+                                                // Sucesso, faça algo aqui se necessário
+                                            } else {
+                                                Log.i("DS3M", "BODY VAZIO")
+                                            }
+                                        } else {
+                                            Log.i("DS3M", "NOP: ${response.code()}")
+                                            // Lide com a resposta de erro aqui, se necessário
+                                        }
                                     }
                                 } catch (e: Exception) {
                                     // Erro de rede ou exceção, trate de acordo
-                                    Log.e("CREATE-USER", "PROBLEMAS: ${e.message}")
+                                    Log.e("DS3M", "PROBLEMAS: ${e.message}", e)
                                 }
                             }
+
 
                         },
                         colors = ButtonDefaults.buttonColors(Color(179, 125, 255)),
