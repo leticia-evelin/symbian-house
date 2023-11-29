@@ -1,12 +1,14 @@
 package br.senai.sp.jandira.softwarehousesymbian
 
 import android.content.Context
+import android.net.Uri
 import android.os.Bundle
-import android.util.Log
-import android.view.Gravity
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,19 +28,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -55,17 +55,20 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.senai.sp.jandira.softwarehousesymbian.ui.theme.SoftwareHouseSymbianTheme
-import br.senai.sp.jandira.softwarehousesymbian.ApiService
+import br.senai.sp.jandira.softwarehousesymbian.model.ApiResponse
+import br.senai.sp.jandira.softwarehousesymbian.service.ApiService
+import br.senai.sp.jandira.softwarehousesymbian.service.RetrofitFactory
+import coil.compose.AsyncImage
 import com.google.gson.JsonObject
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.Response
-import okhttp3.ResponseBody
+import kotlinx.coroutines.suspendCancellableCoroutine
+import org.chromium.base.Callback
+import org.chromium.base.Log
+import retrofit2.Call
+import retrofit2.Response
+import retrofit2.await
 
 
 class MainActivity : ComponentActivity() {
@@ -91,6 +94,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun RegisterUser() {
 
+    var uri by remember {
+        mutableStateOf<Uri?>(null)
+    }
+
+    var url by remember {
+        mutableStateOf<String>("")
+    }
+
     var emailState by remember {
         mutableStateOf("")
     }
@@ -98,7 +109,16 @@ fun RegisterUser() {
         mutableStateOf("")
     }
 
+    var results by remember {
+        mutableStateOf<ApiResponse?>(null)
+    }
 
+    val singlePhotoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+        onResult = {
+            uri = it
+        }
+    )
 
     //variavel que recebe o contexto
     val context = LocalContext.current
@@ -140,22 +160,50 @@ fun RegisterUser() {
                     modifier = Modifier
                         .size(115.dp)
                         .align(Alignment.BottomEnd)
-                        .offset(x = (0).dp, y = 0.dp),
+                        .offset(x = (0).dp, y = 0.dp)
+                        .clickable {
+                            singlePhotoPicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
                     shape = CircleShape,
-//                    backgroundColor = Color(232, 232, 232, 255)
+
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Person, contentDescription = "Pessoa",
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .width(95.dp)
-                            .height(95.dp),
-                        tint = Color.Gray
-                    )
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop)
+
+                    DisposableEffect(uri) {
+                        if (uri != null) {
+                            // Call your UploadPick function here when uri is updated
+                            fun UploadPick(uri: Uri, context: Context) {
+                                uri?.let {
+                                    StorageUtil.uploadToStorage(
+                                        uri = it,
+                                        context = context,
+                                        type = "image",
+                                        {
+                                            url = it
+                                        })
+                                }
+                            }
+
+                            UploadPick(uri!!, context)
+
+                        }
+
+                        onDispose { }
+                    }
+
                 }
                 Image(painter = painterResource(id = R.drawable.baseline_add_a_photo_24),
-                    contentDescription = "Camera", modifier = Modifier.align(Alignment.BottomEnd)
-                        .width(25.dp).height(25.dp).clickable { })
+                    contentDescription = "Camera", modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .width(25.dp)
+                        .height(25.dp)
+                        .clickable { })
 
 
             } // Fim da column login
@@ -176,7 +224,7 @@ fun RegisterUser() {
                     Spacer(modifier = Modifier.height(20.dp))
 
                     OutlinedTextField(
-                        value = emailState,
+                        value = emailState ?: "example@gmail.com",
                         onValueChange = { emailState = it },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -184,24 +232,12 @@ fun RegisterUser() {
                         label = {
                             Text(text = "E-mail")
                         },
-//                    leadingIcon = {
-////                    Icon(painter = painterResource(id = ), contentDescription = )
-////                        Icon(
-////                            painter = painterResource(
-////                                id = R.drawable.email_24
-////                            ),
-////                            contentDescription = stringResource(
-////                                id = R.string.email_description
-////
-////                            ),
-////                            tint = Color(207, 1, 240)
-//                        //)
-//                    }
+
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
-                        value = passwordState,
+                        value = passwordState ?: "123dfgt",
                         onValueChange = { passwordState = it },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -216,37 +252,44 @@ fun RegisterUser() {
 
                     Button(
                         onClick = {
-                            var user = UserResponse(
-                                email = emailState,
-                                password = passwordState,
-                            )
-                           val apiService = RetrofitHelper.getInstance().create(ApiService::class.java)
-
-//                           val call = RetrofitHelper().Register().createUser(user)
-
-
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    val response = apiService.createUser(user)
-                                    withContext(Dispatchers.Main) {
-                                        if (response.isSuccessful) {
-                                            val responseBody = response.body()
-                                            if (responseBody != null) {
-                                                // Sucesso, faça algo aqui se necessário
-                                            } else {
-                                                Log.i("DS3M", "BODY VAZIO")
-                                            }
-                                        } else {
-                                            Log.i("DS3M", "NOP: ${response.code()}")
-                                            // Lide com a resposta de erro aqui, se necessário
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    // Erro de rede ou exceção, trate de acordo
-                                    Log.e("DS3M", "PROBLEMAS: ${e.message}", e)
-                                }
+                            val body = JsonObject().apply {
+                                addProperty("login", emailState)
+                                addProperty("senha", passwordState)
+                                addProperty("imagem", url)
                             }
 
+//                            val call = RetrofitFactory.cadastro().createUser(body)
+                            // Use uma coroutine para chamar a função suspensa createUser
+                            GlobalScope.launch(Dispatchers.Main) {
+                                try {
+                                    val response = RetrofitFactory.cadastro().createUser(body).execute()
+
+                                    if (response.isSuccessful) {
+                                        val apiResponse = response.body()
+
+                                        // Manipule a resposta aqui
+                                        Toast.makeText(
+                                            context,
+                                            "${apiResponse?.mensagemStatus}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        // Tratar erro na resposta
+                                        Toast.makeText(
+                                            context,
+                                            "Erro na requisição: ${response.code()}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                } catch (e: Exception) {
+                                    // Trate exceções aqui
+                                    Toast.makeText(
+                                        context,
+                                        "Erro na requisição: ${e.message}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
 
                         },
                         colors = ButtonDefaults.buttonColors(Color(179, 125, 255)),

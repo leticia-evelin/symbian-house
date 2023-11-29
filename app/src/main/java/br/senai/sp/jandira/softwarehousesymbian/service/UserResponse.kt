@@ -1,4 +1,4 @@
-package br.senai.sp.jandira.softwarehousesymbian
+package br.senai.sp.jandira.softwarehousesymbian.service
 
 data class UserResponse(
     var email: String = " ",
