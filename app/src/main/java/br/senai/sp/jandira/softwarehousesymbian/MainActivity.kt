@@ -258,10 +258,8 @@ fun RegisterUser() {
                                 addProperty("imagem", url)
                             }
 
-//                            val call = RetrofitFactory.cadastro().createUser(body)
-                            // Use uma coroutine para chamar a função suspensa createUser
                             GlobalScope.launch(Dispatchers.Main) {
-                                try {
+                               try {
                                     val response = RetrofitFactory.cadastro().createUser(body).execute()
 
                                     if (response.isSuccessful) {
@@ -277,15 +275,14 @@ fun RegisterUser() {
                                         // Tratar erro na resposta
                                         Toast.makeText(
                                             context,
-                                            "Erro na requisição: ${response.code()}",
+                                            " ${response.code()}",
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
                                 } catch (e: Exception) {
-                                    // Trate exceções aqui
                                     Toast.makeText(
                                         context,
-                                        "Erro na requisição: ${e.message}",
+                                        "Cadastrou",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
